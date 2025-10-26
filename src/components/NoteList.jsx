@@ -12,7 +12,7 @@ function NoteList({ notes, emptyMessage }) {
       {notes.map(note => (
         <NoteItem 
           key={note.id} 
-          {...note} // Kirim semua data note sebagai props
+          {...note}
         />
       ))}
     </div>
