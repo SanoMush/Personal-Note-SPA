@@ -1,105 +1,85 @@
-import React, { useState } from 'react';
-import { Routes, Route, useSearchParams } from 'react-router-dom';
-import { getInitialData } from './utils';
+import React, { useState, useEffect, useContext } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { getUserLoggedIn, putAccessToken } from './utils/network-data';
+import { LocaleContext } from './contexts/LocaleContext';
+
 import Navigation from './components/Navigation';
 import HomePage from './pages/HomePage';
 import ArchivePage from './pages/ArchivePage';
 import DetailPage from './pages/DetailPage';
 import AddPage from './pages/AddPage';
 import NotFoundPage from './pages/NotFoundPage';
+import RegisterPage from './pages/RegisterPage';
+import LoginPage from './pages/LoginPage';
 
 function App() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [authedUser, setAuthedUser] = useState(null);
+  const [initializing, setInitializing] = useState(true);
+  const { locale } = useContext(LocaleContext);
+  const navigate = useNavigate();
 
-  const [notes, setNotes] = useState(getInitialData());
+  useEffect(() => {
+    async function checkLoginStatus() {
+      const { error, data } = await getUserLoggedIn();
+      if (!error) {
+        setAuthedUser(data);
+      }
+      setInitializing(false);
+    }
+    checkLoginStatus();
+  }, []);
 
-  const [keyword, setKeyword] = useState(() => {
-
-    return searchParams.get('keyword') || '';
-  });
-
-  function onKeywordChangeHandler(keyword) {
-    setKeyword(keyword);
-    setSearchParams({ keyword });
+  async function onLoginSuccessHandler(accessToken) {
+    putAccessToken(accessToken); 
+    const { error, data } = await getUserLoggedIn(); 
+    if (!error) {
+      setAuthedUser(data);
+      navigate('/'); 
+    }
   }
 
-  function onDeleteHandler(id) {
-    const newNotes = notes.filter(note => note.id !== id);
-    setNotes(newNotes);
+  function onLogoutHandler() {
+    setAuthedUser(null);
+    putAccessToken(''); 
+    navigate('/login');
   }
 
-  function onArchiveHandler(id) {
-    const newNotes = notes.map(note => 
-      note.id === id ? { ...note, archived: !note.archived } : note
+  if (initializing) {
+    return (
+      <div className="app-container">
+        <p className="loading-indicator">{locale === 'id' ? 'Memuat aplikasi...' : 'Loading application...'}</p>
+      </div>
     );
-    setNotes(newNotes);
   }
 
-  function onAddNoteHandler({ title, body }) {
-    setNotes([...notes, {
-      id: `notes-${+new Date()}`,
-      title,
-      body,
-      archived: false,
-      createdAt: new Date().toISOString(),
-    }]);
+  if (authedUser === null) {
+    return (
+      <div className="app-container">
+        <main>
+          <Routes>
+            <Route path="/*" element={<LoginPage onLoginSuccess={onLoginSuccessHandler} />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Routes>
+        </main>
+      </div>
+    );
   }
-  
-  const filteredNotes = notes.filter(note => 
-    note.title.toLowerCase().includes(keyword.toLowerCase())
-  );
-
-  const activeNotes = filteredNotes.filter(note => !note.archived);
-  const archivedNotes = filteredNotes.filter(note => note.archived);
 
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Aplikasi Catatan</h1>
-        <Navigation />
+        <h1>{locale === 'id' ? 'Aplikasi Catatan' : 'Notes App'}</h1>
+        <Navigation 
+          authedUser={authedUser} 
+          logout={onLogoutHandler} 
+        />
       </header>
       <main>
-        {}
         <Routes>
-          {}
-          <Route 
-            path="/" 
-            element={
-              <HomePage 
-                notes={activeNotes} 
-                keyword={keyword}
-                onKeywordChange={onKeywordChangeHandler}
-              />
-            } 
-          />
-          {}
-          <Route 
-            path="/archives" 
-            element={
-              <ArchivePage 
-                notes={archivedNotes} 
-                keyword={keyword}
-                onKeywordChange={onKeywordChangeHandler}
-              />
-            } 
-          />
-          {}
-          <Route 
-            path="/notes/new" 
-            element={<AddPage onAddNote={onAddNoteHandler} />} 
-          />
-          {}
-          <Route 
-            path="/notes/:id" 
-            element={
-              <DetailPage 
-                notes={notes}
-                onDelete={onDeleteHandler}
-                onArchive={onArchiveHandler}
-              />
-            } 
-          />
-          {}
+          <Route path="/" element={<HomePage />} />
+          <Route path="/archives" element={<ArchivePage />} />
+          <Route path="/notes/new" element={<AddPage />} />
+          <Route path="/notes/:id" element={<DetailPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
